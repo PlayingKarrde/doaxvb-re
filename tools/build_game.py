@@ -92,6 +92,12 @@ def linux_compiler_args():
     return ["-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang++"]
 
 
+def folder_path(path):
+    """A path inside the game folder as a portable relative string; other paths stay absolute."""
+    path = Path(path).resolve()
+    return path.relative_to(ROOT.resolve()).as_posix() if path.is_relative_to(ROOT.resolve()) else str(path)
+
+
 def build(args, verify_parity=True, lifter_revision=None):
     prefer_bundled_tools(ROOT)
     windows = sys.platform == "win32"
@@ -228,10 +234,12 @@ def build(args, verify_parity=True, lifter_revision=None):
         if windows:
             shutil.copy2(output / "recomp_launcher.exe", ROOT / "Launcher.exe")
             shutil.copy2(output / "recomp_play.exe", ROOT / "DOAXBV.exe")
-        receipt.update(status="built-unverified", runner=str(runner), runner_sha256=sha256(runner))
+        # Paths relative to the game folder let the folder move; see tools/run_game.py.
+        receipt.update(status="built-unverified", runner=folder_path(runner), runner_sha256=sha256(runner),
+                       disc=folder_path(disc))
         if windows:
             vulkan = output / "recomp_program_runner_vulkan.exe"
-            receipt.update(vulkan_runner=str(vulkan), vulkan_runner_sha256=sha256(vulkan))
+            receipt.update(vulkan_runner=folder_path(vulkan), vulkan_runner_sha256=sha256(vulkan))
         print(f"Built diagnostic runner: {runner}. Gameplay has not been validated.", flush=True)
         return work
     except Exception as error:

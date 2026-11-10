@@ -46,6 +46,25 @@ class ExtractionTests(unittest.TestCase):
             self.assertIn("compiler error", console.getvalue())
             self.assertIn(b"compiler error", log.read_bytes())
 
+    def test_relative_receipt_survives_moving_the_game_folder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            first = Path(folder).resolve() / "first"
+            work = first / "private/setup-synthetic"
+            disc = work / "disc"
+            disc.mkdir(parents=True)
+            (disc / "synthetic.xbe").write_bytes(b"synthetic game input")
+            (work / "runner").write_bytes(b"synthetic runner")
+            (work / "build-receipt.json").write_text(json.dumps({
+                "status": "built-unverified", "disc": "private/setup-synthetic/disc",
+                "runner": "private/setup-synthetic/runner", "runner_sha256": sha256(work / "runner"),
+                "xbe_sha256": sha256(disc / "synthetic.xbe")}))
+            (first / "private/active-build.json").write_text(
+                json.dumps({"receipt": "private/setup-synthetic/build-receipt.json"}))
+            moved = first.rename(Path(folder).resolve() / "moved")
+            work = moved / "private/setup-synthetic"
+            self.assertEqual(build_inputs(moved),
+                             (work / "runner", work / "disc/synthetic.xbe", work / "build-receipt.json"))
+
     def test_built_runner_receipt_selection_and_identity(self):
         self.enterContext(patch.dict(os.environ))
         os.environ.pop("RECOMP_RENDERER", None)

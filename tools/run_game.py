@@ -34,8 +34,9 @@ def build_inputs(root, receipt_path=None):
     key = "vulkan_runner" if vulkan_requested() else "runner"
     if key not in receipt:
         raise ValueError("This build has no Vulkan renderer. Build the game again, or choose Direct3D 11.")
-    runner = Path(receipt[key]).resolve(strict=True)
-    disc = Path(receipt["disc"]).resolve(strict=True)
+    # Current receipts name paths relative to the game folder, so it can move; older ones are absolute.
+    runner = (root / receipt[key]).resolve(strict=True)
+    disc = (root / receipt["disc"]).resolve(strict=True)
     if not runner.is_relative_to(private) or not disc.is_relative_to(private):
         raise ValueError("Build paths must remain inside this checkout's private folder.")
     images = list(disc.glob("*.xbe"))

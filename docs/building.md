@@ -88,9 +88,13 @@ showing the launcher, or opens it on the Build page when nothing is built) or
 `RunGame.cmd` (default settings) in the same folder. Setup builds both exes
 with the runner and embeds `private/doaxbv.ico` in them; the launcher window
 shows that icon too. `Launcher.cmd`
-opens the same window when the exe is absent. Keep that folder in place after
-setup: build receipts identify the exact local paths. Setup does not launch the
-game automatically.
+opens the same window when the exe is absent. Setup does not launch the game
+automatically.
+
+Build receipts name the runner and the extracted disc relative to the game
+folder, so a built folder can move or be copied to another folder or machine.
+Builds made before this keep absolute paths; build again to make them movable.
+Saves, settings and logs already live under `private/`.
 
 The Windows launcher copies the game's island map menus: glass panels, green
 name plates and A/B prompts. It draws game images from `private/launcher`.

@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SDL3 for macOS and Linux, shared by the runtime and the launcher
 # (tools/launcher). macOS builds need SDL3 (brew install sdl3). Linux uses the
-# system SDL3, or builds it when RECOMP_FETCH_SDL3 is on, as build_game.py asks (Ubuntu 24.04
+# system SDL3, the one tools/build_prerequisites.py names with SDL3_DIR, or
+# builds it when RECOMP_FETCH_SDL3 is on, as build_game.py asks (Ubuntu 24.04
 # has no package). Hosts with none only configure, which the tools tests do
 # without it.
 option(RECOMP_FETCH_SDL3 "Build SDL3 when the system has none" OFF)
@@ -24,6 +25,9 @@ if(NOT SDL3_FOUND AND RECOMP_FETCH_SDL3)
     set(SDL_STATIC OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(SDL3)
     set(SDL3_FOUND TRUE)
+    set(_recomp_sdl3_beside TRUE)
+elseif(SDL3_FOUND AND NOT APPLE AND NOT RECOMP_SDL3_HOST AND NOT SDL3_DIR MATCHES "^/(usr|lib)/")
+    # The bundled tools/sdl3-linux; the host-SDL package sets RECOMP_SDL3_HOST.
     set(_recomp_sdl3_beside TRUE)
 endif()
 

@@ -219,12 +219,62 @@ distribution has none, and `extract-xiso` as on macOS.
 `build_game.sh` installs Capstone into `private/venv` on its first run; on
 Ubuntu that needs the `python3-venv` package.
 
-SteamOS has a read-only system and no compiler, so build inside a container
-such as an Ubuntu 24.04 `distrobox` that shares your home folder. Run
-`./launcher.sh` inside it too: the launcher is built on its first run with
-the container's compiler, and its **Build** page builds the game there. The
-finished build carries its own SDL3, so `./run_game.sh` also starts the game
-with the saved choices on SteamOS itself.
+SteamOS has a read-only system and no compiler. When `build_game.sh` finds no
+C++ compiler or no CMake, it builds with a portable toolchain instead and needs
+neither root nor a container. It installs zig 0.14.1, CMake 4.4.4 and Ninja
+1.13.2 from hash-pinned Python wheels
+(`tools/portable-toolchain-requirements.txt`) into `private/venv`.
+On a Steam Deck, zig 0.16's clang 21 built a game that ran about 10% slower
+than zig 0.14.1's clang 19 in CPU-bound scenes. Even zig 0.14.1 stays about 8%
+slower there than Ubuntu 24.04's clang 18 in a container (34 against 37 fps
+in the attract sequence); light scenes hold 60 fps on all three.
+For that extra speed on a Steam Deck, run `./build_game.sh` in an Ubuntu 24.04
+`distrobox` with the packages listed above; setup finds its clang and builds
+as on Ubuntu. The finished build carries its own SDL3 and runs on SteamOS
+itself, and `./launcher.sh` and `./run_game.sh` still run outside the
+container. Either route can build in the same game folder: setup recreates
+`private/venv` when it was made by the other side's Python.
+`tools/build_prerequisites.py` wraps zig as the C and C++ compiler for
+`x86_64-linux-gnu.2.31`, so the build uses zig's own glibc and libc++ headers,
+not the host's. The same toolchain builds `extract-xiso`. Set
+`DOAXBV_TOOLCHAIN=zig` to force this route on any x86-64 Linux, or
+`DOAXBV_TOOLCHAIN=system` to keep the host compiler. When the system `python3`
+is older than 3.10 or cannot make a venv (Ubuntu without `python3-venv`),
+`build_game.sh` downloads a pinned standalone CPython 3.13 into
+`tools/python-linux` first.
+
+This route supports x86-64 Linux with glibc only. On musl distributions such
+as Alpine, or on ARM, install CMake, a C++17 compiler and SDL3 instead.
+
+zig has no X11 or Wayland headers, so this route never builds SDL3, and it
+never uses the host's SDL headers, which would bring the host's libc headers
+with them. It links one of two SDL3 builds:
+
+1. The host's own `libSDL3.so.0`, when it reports SDL 3.4.12 or newer.
+   SteamOS ships one without headers. Setup downloads the pinned SDL 3.4.12
+   source (checked by SHA-256), keeps only its headers in `private/sdl3-host`,
+   and targets the host's glibc, or glibc 2.41 on a newer host, the newest
+   zig 0.14.1 knows. The build then runs on that machine, which
+   only gets newer glibc, and on others with SDL 3.4.12 and that glibc or
+   newer.
+2. Otherwise, or when `DOAXBV_SDL3=bundled` is set, a prebuilt SDL3 in
+   `tools/sdl3-linux`, targeting glibc 2.31. Setup copies it beside the runner
+   and the launcher, which look there first, so such a build also runs after
+   its folder moves to an older distribution.
+   `tools/build_sdl3_linux.sh` builds it with the same zig toolchain on a
+   machine that has SDL3's build dependencies (the `apt` list below), after
+   `DOAXBV_TOOLCHAIN=zig ./build_game.sh --help` has installed zig. The script
+   checks that the library needs nothing beyond glibc 2.31. SDL loads X11,
+   Wayland and the audio libraries at run time. No release ZIP includes this
+   folder yet.
+
+The build receipt records which SDL3 and glibc target were used. On a
+distribution without SDL3 and without `tools/sdl3-linux`, you can still build
+the whole game in an Ubuntu 24.04 `distrobox` that shares your home folder, as
+before.
+
+`./launcher.sh` opens the launcher described above; on SteamOS it builds and
+plays the game with no other step.
 
 On Ubuntu 24.04, including that `distrobox`, this installs the build tools and
 SDL3's build dependencies:

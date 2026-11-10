@@ -120,9 +120,9 @@ installer, which needs administrator approval and several GB of disk space.
    the defaults.
 
 On macOS, Linux and Steam Deck:
-1. Install the prerequisites in [docs/building.md](docs/building.md#macos-build)
-   on macOS, or follow [docs/building.md](docs/building.md#linux-and-steamos-build)
-   on Linux and Steam Deck.
+1. On macOS, install the prerequisites in [docs/building.md](docs/building.md#macos-build).
+   A Steam Deck needs nothing installed; other Linux systems, see
+   [docs/building.md](docs/building.md#linux-and-steamos-build).
 2. Run `./launcher.sh`. It opens on **Build** and finds your ISO; press **Build
    game** and wait for **Build complete**.
 3. Pick your options, then press **Play**. Afterwards `./run_game.sh` starts the

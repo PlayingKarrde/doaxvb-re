@@ -1,0 +1,15 @@
+# Build tools that build_game.sh installs into private/venv when the host has no
+# C++ compiler or CMake, as on SteamOS (PyPI SHA-256). ziglang provides clang with
+# its own glibc headers, so the build needs no system headers or root access.
+cmake==4.4.4 \
+    --hash=sha256:f773a0544c66370408f451acd487c2c643b0dfebb48c5d64f3638bc1bb820238 \
+    --hash=sha256:883962a72b1b3a16ff445427f24c8caca9797dd9e563bbe208cbcd89e877f9d3
+ninja==1.13.2 \
+    --hash=sha256:65a24341b5ac09fcadcc37082660be40a94174e51a937fabf6e2cae26225fa2c \
+    --hash=sha256:fd82e26c0706ad4ab88e5fdd26f3fab0a987a90f810160f6c322e752c6af298b
+# Not 0.16: its clang 21 built a game that ran about 10% slower on a Steam Deck
+# than zig 0.14.1's clang 19, which is still slower than a host clang 18.
+ziglang==0.14.1 \
+    --hash=sha256:6eb9d4d759b292c83810dbee2e9e8e3fbfbf01d864e6e9811bae711fd74e1c2f \
+    --hash=sha256:eae7d46746b8e80a4d1a8369b09f7a6aace973ee39207b1b63cfb6bb086e84dc \
+    --hash=sha256:7b880229c41e822c0388318de89dffe034a146ce44a7342b7e74b167329a67b9

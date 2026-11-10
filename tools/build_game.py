@@ -14,7 +14,8 @@ import sys
 import uuid
 
 from extract_iso import extract, run_logged, sha256
-from build_prerequisites import ensure_extract_xiso, ensure_prerequisites, prefer_bundled_tools
+from build_prerequisites import (ensure_extract_xiso, ensure_prerequisites, prefer_bundled_tools,
+                                 prepare_portable_toolchain, portable_toolchain_requested)
 import launcher_art
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -95,9 +96,16 @@ def linux_compiler_args():
 def unix_cmake_args(compiler):
     """Generator, CMake arguments and receipt fields for a macOS or Linux build.
 
-    tools/build_launcher.py configures the launcher with the same compiler and SDL3.
+    tools/build_launcher.py configures the launcher with the same toolchain and SDL3.
     """
     generator = "Ninja" if shutil.which("ninja") else "Unix Makefiles"
+    if portable_toolchain_requested():
+        # zig has no X11 or Wayland headers, so link the host's or the bundled SDL3, never build it.
+        portable = prepare_portable_toolchain(ROOT)
+        print(f"Building with zig for {portable['target']} and the {portable['sdl3']} SDL3.", flush=True)
+        version = subprocess.check_output([str(compiler), "--version"], text=True).splitlines()[0]
+        return generator, portable["cmake_args"], {"compiler": f"{version} (zig cc, {portable['target']})",
+                                                   "sdl3": portable["sdl3"]}
     if sys.platform.startswith("linux"):
         # RECOMP_FETCH_SDL3 builds SDL3 only when the system has none.
         return generator, ["-DRECOMP_FETCH_SDL3=ON", *linux_compiler_args()], {}

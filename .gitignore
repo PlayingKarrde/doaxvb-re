@@ -17,6 +17,8 @@ tools/artifacts/
 tools/llvm-mingw/
 tools/dxc/
 tools/extract-xiso/
+tools/sdl3-linux/
+tools/python-linux/
 tools/disasm/output/
 
 # Game and console artifacts

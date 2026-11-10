@@ -88,11 +88,17 @@ showing the launcher, or opens it on the Build page when nothing is built) or
 `RunGame.cmd` (default settings) in the same folder. Setup builds both exes
 with the runner and embeds `private/doaxbv.ico` in them; the launcher window
 shows that icon too. `Launcher.cmd`
-opens the same window when the exe is absent. Keep that folder in place after
-setup: build receipts identify the exact local paths. Setup does not launch the
-game automatically.
+opens the same window when the exe is absent. Setup does not launch the game
+automatically.
 
-The Windows launcher copies the game's island map menus: glass panels, green
+Build receipts name the runner and the extracted disc relative to the game
+folder, so a built folder can move or be copied to another folder or machine.
+Builds made before this keep absolute paths; build again to make them movable.
+Saves, settings and logs already live under `private/`. On macOS and Linux,
+`launcher.sh` and `build_game.sh` rebuild `private/venv` after a move, because
+a venv records its own path.
+
+Every launcher copies the game's island map menus: glass panels, green
 name plates and A/B prompts. It draws game images from `private/launcher`.
 Setup copies `logo.png`, `button-a.png`, `button-b.png` and a sunny beach
 preview, `beach.png`, from your disc, finding each texture by its content key
@@ -161,15 +167,46 @@ Windows package bundles into `tools/extract-xiso`, using Apple's command line
 tools (`xcode-select --install`). An `extract-xiso` on `PATH` or one passed with
 `--extractor` is used instead.
 
-Then build the runner:
+Then open the launcher, which builds the game the first time:
 
 ```bash
-./build_game.sh /path/to/game.iso
+./launcher.sh
 ```
 
-`./launcher.sh` opens the launcher to pick resolution, anti-aliasing, volume
-and soundtrack options, then starts the game. `./run_game.sh` starts the game
-with the saved choices.
+### The macOS and Linux launcher
+
+`launcher.sh` opens the counterpart of the Windows launcher
+(`tools/launcher_sdl.cpp`), with its sections, island map look and controls.
+On its first run, `tools/build_launcher.py` builds only the launcher, in
+`private/launcher-build`, with the compiler and SDL3 the game build uses. This
+takes seconds, and the launcher exists before any game build. It rebuilds
+only when its source, its toolchain or the folder's location changes.
+
+Without a build, the launcher opens on its **Build** page. It searches your
+home folder, EmuDeck's `Emulation/roms/xbox` and removable drives such as the
+Steam Deck's SD card for Xbox disc images (`.iso` or `.xiso` of 1 GB or
+more). **Browse...** opens the system file picker where one exists, and an ISO
+dropped on the window is added too. **Build game** runs `build_game.sh` in the
+background, shows its output, and saves it to `private/launcher-build.log`.
+When it finishes, **Play** saves your choices to `private/launcher.json` and
+starts `run_game.sh`, which applies them. `./build_game.sh /path/to/game.iso`
+still builds without the launcher, and `./run_game.sh` plays with the saved
+choices without opening it.
+
+The launcher offers resolution, MSAA, fog, volume, shuffle, unlocked
+swimsuits, shorter demo cuts, the free camera and the title screen idle
+choice. SMAA, VRR pacing, sun shadows, per-pixel lighting, smooth normals,
+RTGI, texture packs and the music folder belong to Direct3D 11 or Media
+Foundation on Windows, so it leaves them out. Their saved values in
+`private/launcher.json` stay untouched. A keyboard, mouse, touch screen or
+controller works: LB and RB (or Tab) switch sections, the d-pad or arrows move
+between options and left or right changes one, A or Enter ticks or presses,
+Start plays and B or Esc quits. While a build runs, the launcher stays open.
+
+Set `DOAXBV_LAUNCHER_SCREENSHOTS=/some/prefix` with
+`SDL_VIDEO_DRIVER=offscreen` to save every section as `<prefix>-<n>.bmp` and
+exit without a display. CI uses this to check that the launcher draws on macOS
+and Linux.
 
 ### Linux and SteamOS build
 
@@ -182,11 +219,62 @@ distribution has none, and `extract-xiso` as on macOS.
 `build_game.sh` installs Capstone into `private/venv` on its first run; on
 Ubuntu that needs the `python3-venv` package.
 
-SteamOS has a read-only system and no compiler, so build inside a container
-such as an Ubuntu 24.04 `distrobox` that shares your home folder; the
-finished checkout then runs on SteamOS itself. Run `./build_game.sh` as on
-macOS. `./launcher.sh` opens a gamepad-friendly settings screen, then starts
-the game; `./run_game.sh` starts the game with the saved choices.
+SteamOS has a read-only system and no compiler. When `build_game.sh` finds no
+C++ compiler or no CMake, it builds with a portable toolchain instead and needs
+neither root nor a container. It installs zig 0.14.1, CMake 4.4.4 and Ninja
+1.13.2 from hash-pinned Python wheels
+(`tools/portable-toolchain-requirements.txt`) into `private/venv`.
+On a Steam Deck, zig 0.16's clang 21 built a game that ran about 10% slower
+than zig 0.14.1's clang 19 in CPU-bound scenes. Even zig 0.14.1 stays about 8%
+slower there than Ubuntu 24.04's clang 18 in a container (34 against 37 fps
+in the attract sequence); light scenes hold 60 fps on all three.
+For that extra speed on a Steam Deck, run `./build_game.sh` in an Ubuntu 24.04
+`distrobox` with the packages listed above; setup finds its clang and builds
+as on Ubuntu. The finished build carries its own SDL3 and runs on SteamOS
+itself, and `./launcher.sh` and `./run_game.sh` still run outside the
+container. Either route can build in the same game folder: setup recreates
+`private/venv` when it was made by the other side's Python.
+`tools/build_prerequisites.py` wraps zig as the C and C++ compiler for
+`x86_64-linux-gnu.2.31`, so the build uses zig's own glibc and libc++ headers,
+not the host's. The same toolchain builds `extract-xiso`. Set
+`DOAXBV_TOOLCHAIN=zig` to force this route on any x86-64 Linux, or
+`DOAXBV_TOOLCHAIN=system` to keep the host compiler. When the system `python3`
+is older than 3.10 or cannot make a venv (Ubuntu without `python3-venv`),
+`build_game.sh` downloads a pinned standalone CPython 3.13 into
+`tools/python-linux` first.
+
+This route supports x86-64 Linux with glibc only. On musl distributions such
+as Alpine, or on ARM, install CMake, a C++17 compiler and SDL3 instead.
+
+zig has no X11 or Wayland headers, so this route never builds SDL3, and it
+never uses the host's SDL headers, which would bring the host's libc headers
+with them. It links one of two SDL3 builds:
+
+1. The host's own `libSDL3.so.0`, when it reports SDL 3.4.12 or newer.
+   SteamOS ships one without headers. Setup downloads the pinned SDL 3.4.12
+   source (checked by SHA-256), keeps only its headers in `private/sdl3-host`,
+   and targets the host's glibc, or glibc 2.41 on a newer host, the newest
+   zig 0.14.1 knows. The build then runs on that machine, which
+   only gets newer glibc, and on others with SDL 3.4.12 and that glibc or
+   newer.
+2. Otherwise, or when `DOAXBV_SDL3=bundled` is set, a prebuilt SDL3 in
+   `tools/sdl3-linux`, targeting glibc 2.31. Setup copies it beside the runner
+   and the launcher, which look there first, so such a build also runs after
+   its folder moves to an older distribution.
+   `tools/build_sdl3_linux.sh` builds it with the same zig toolchain on a
+   machine that has SDL3's build dependencies (the `apt` list below), after
+   `DOAXBV_TOOLCHAIN=zig ./build_game.sh --help` has installed zig. The script
+   checks that the library needs nothing beyond glibc 2.31. SDL loads X11,
+   Wayland and the audio libraries at run time. No release ZIP includes this
+   folder yet.
+
+The build receipt records which SDL3 and glibc target were used. On a
+distribution without SDL3 and without `tools/sdl3-linux`, you can still build
+the whole game in an Ubuntu 24.04 `distrobox` that shares your home folder, as
+before.
+
+`./launcher.sh` opens the launcher described above; on SteamOS it builds and
+plays the game with no other step.
 
 On Ubuntu 24.04, including that `distrobox`, this installs the build tools and
 SDL3's build dependencies:

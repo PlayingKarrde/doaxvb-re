@@ -95,6 +95,14 @@ jobs:
         run: |
           ./build_game.sh --help
           private/venv/bin/python3 -c "import capstone"
+      - name: Build the launcher the way launcher.sh does and draw every page
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: |
+          private/venv/bin/python3 tools/build_launcher.py
+          # Screenshot mode exits 1 once every page is saved, 2 if one fails.
+          DOAXBV_LAUNCHER_SCREENSHOTS="$RUNNER_TEMP/launcher" private/launcher-build/recomp_launcher "$PWD" || test $? -eq 1
+          ls "$RUNNER_TEMP"/launcher-5.bmp
       - name: Build extract-xiso the way setup does
         run: |
           mkdir -p private/ci-xiso
@@ -126,6 +134,13 @@ jobs:
           mkdir -p private/ci-xiso
           tool=$(python3 -c "import sys; from pathlib import Path; sys.path.insert(0, 'tools'); import build_prerequisites as p; print(p.ensure_extract_xiso(Path.cwd(), Path('private/ci-xiso')))" | tail -n 1)
           "$tool" -h 2>&1 | grep extract-xiso
+      - name: Build the launcher the way launcher.sh does and draw every page
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: |
+          python3 tools/build_launcher.py
+          DOAXBV_LAUNCHER_SCREENSHOTS="$RUNNER_TEMP/launcher" private/launcher-build/recomp_launcher "$PWD" || test $? -eq 1
+          ls "$RUNNER_TEMP"/launcher-5.bmp
       - name: Configure public runtime tests with clang, as setup does
         run: >-
           cmake -S recomp-runtime -B build/recomp-runtime -G Ninja -DRECOMP_FETCH_SDL3=ON
@@ -142,5 +157,43 @@ jobs:
         run: |
           # The presenter test passes without shaderc, so fail on its skip or compile errors.
           build/recomp-runtime/recomp_d3d_presenter_sdl_gpu_test > presenter.log 2>&1
+          cat presenter.log
+          if grep -E 'need shaderc|shaderc compilation failed|SPIR-V shader' presenter.log; then exit 1; fi
+
+  # SteamOS has no compiler: build with zig from private/venv and no host compiler on PATH.
+  runtime-tests-linux-portable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL3's build dependencies and software Vulkan
+        run: |
+          sudo apt-get update
+          # The Ubuntu list in docs/building.md without the compiler and build tools.
+          sudo apt-get install -y git python3-venv \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev \
+            libxss-dev libxtst-dev libxkbcommon-dev libwayland-dev libdecor-0-dev \
+            libasound2-dev libpulse-dev libvulkan-dev libshaderc1 mesa-vulkan-drivers
+      - name: Install the portable toolchain the way setup does
+        run: DOAXBV_TOOLCHAIN=zig ./build_game.sh --help
+      - name: Build the bundled SDL3 with zig
+        run: PATH="$PWD/private/venv/bin:$PATH" tools/build_sdl3_linux.sh
+      - name: Build and run public runtime tests without a host compiler
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: tools/test_portable_toolchain.sh build/portable
+      - name: Build the launcher with zig, carrying its own SDL3, and draw every page
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+          DOAXBV_TOOLCHAIN: zig
+        run: |
+          PATH="$PWD/private/venv/bin:$PATH" private/venv/bin/python3 tools/build_launcher.py
+          test -f private/launcher-build/libSDL3.so.0
+          DOAXBV_LAUNCHER_SCREENSHOTS="$RUNNER_TEMP/launcher" private/launcher-build/recomp_launcher "$PWD" || test $? -eq 1
+          ls "$RUNNER_TEMP"/launcher-5.bmp
+      - name: Check the presenter compiled its Vulkan shaders
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: |
+          build/portable/recomp_d3d_presenter_sdl_gpu_test > presenter.log 2>&1
           cat presenter.log
           if grep -E 'need shaderc|shaderc compilation failed|SPIR-V shader' presenter.log; then exit 1; fi
